@@ -576,9 +576,12 @@ dialog.bundle.error.bundle-format.required = No bundle format selected.
 # Editor panes
 
 pane.assets = Assets
+pane.assets.filter.prompt = Filter assets...
 pane.changed-files = Changed Files
 pane.outline = Outline
+pane.outline.filter.prompt = Filter outline...
 pane.properties = Properties
+pane.properties.filter.prompt = Filter properties...
 pane.console = Console
 pane.curve-editor = Curve Editor
 pane.build-errors = Build Errors

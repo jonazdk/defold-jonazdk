@@ -45,7 +45,7 @@
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.scene Node Parent]
-           [javafx.scene.control Slider]
+           [javafx.scene.control Slider TextField]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]))
 
@@ -209,6 +209,21 @@
                                          (properties property-keyword)))
                                  property-keywords)))))
         display-order))
+
+(defn- filter-category-properties
+  "Filters category-property pairs, keeping only properties whose label
+   contains the filter text (case-insensitive). Removes empty categories."
+  [category-properties ^String filter-lower localization-state]
+  (into []
+        (keep (fn [[category-title properties]]
+                (let [filtered (filterv (fn [[_kw property]]
+                                         (let [label-msg (properties/label property)
+                                               label-str (str (localization-state label-msg))]
+                                           (string/includes? (string/lower-case label-str) filter-lower)))
+                                       properties)]
+                  (when (seq filtered)
+                    (pair category-title filtered)))))
+        category-properties))
 
 (defn- set-values!
   ([property values]
@@ -702,15 +717,17 @@
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization (:context props))
               :key :localization-state}]}
-  [{:keys [localization-state properties context]}]
+  [{:keys [localization-state properties context filter-text]}]
   (let [properties (properties/coalesce properties)
-        selection-provider (->SelectionProvider (:original-node-ids properties))]
+        selection-provider (->SelectionProvider (:original-node-ids properties))
+        filtering (not (string/blank? filter-text))
+        category-props (cond-> (category-property-edit-types properties)
+                         filtering (filter-category-properties (string/lower-case (string/trim filter-text)) localization-state))]
     {:fx/type fxui/vertical
      :padding :small
      :spacing :small
      :children
-     (->> properties
-          category-property-edit-types
+     (->> category-props
           (e/mapcat
             (fn [[category-title properties]]
               (when-not (coll/empty? properties)
@@ -763,7 +780,7 @@
                                   :catch {:fx/type error-view}})))))})))))
           (into []))}))
 
-(defn pane-view [{:keys [parent context selected-node-properties]}]
+(defn pane-view [{:keys [parent context selected-node-properties filter-text]}]
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value :value parent}
    :props {:children [{:fx/type fxui/scroll
@@ -773,11 +790,13 @@
                        :anchor-pane/right 0
                        :content {:fx/type grid-view
                                  :context context
+                                 :filter-text filter-text
                                  :properties selected-node-properties}}]}})
 
 (g/defnode PropertiesView
   (property parent-view Parent)
   (property prefs g/Any)
+  (property filter-text g/Str (default ""))
 
   (input workspace g/Any)
   (input localization g/Any)
@@ -788,10 +807,11 @@
   (input selected-node-properties g/Any)
 
   (output description g/Any :cached
-          (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization]
+          (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties color-dropper-view prefs localization filter-text]
             {:fx/type fxui/ext-dedupe-identical-desc
              :desc {:fx/type pane-view
                     :parent parent-view
+                    :filter-text filter-text
                     :context {:workspace workspace
                               :project project
                               :app-view app-view
@@ -801,7 +821,7 @@
                               :color-dropper-view color-dropper-view}
                     :selected-node-properties selected-node-properties}})))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs ^Node parent]
+(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs ^Node parent ^TextField filter-field localization]
   (let [properties-view (first
                           (g/tx-nodes-added
                             (g/transact
@@ -813,6 +833,16 @@
                                 (g/connect app-view :selected-node-properties view :selected-node-properties)
                                 (g/connect search-results-view :_node-id view :search-results-view)
                                 (g/connect color-dropper-view :_node-id view :color-dropper-view)))))]
+    ;; Wire up the filter text field
+    (localization/localize! (.promptTextProperty filter-field) localization (localization/message "pane.properties.filter.prompt"))
+    (ui/observe (.textProperty filter-field)
+                (fn [_ _ new-text]
+                  (g/set-property! properties-view :filter-text (or new-text ""))))
+    (.addEventFilter filter-field KeyEvent/KEY_PRESSED
+                     (ui/event-handler e
+                       (when (= KeyCode/ESCAPE (.getCode ^KeyEvent e))
+                         (.setText filter-field "")
+                         (.requestFocus parent))))
     (ui/node-timer!
       parent 30 "refresh-properties-view"
       #(fxui/advance-ui-user-data-component! parent ::properties-view (g/node-value properties-view :description)))
