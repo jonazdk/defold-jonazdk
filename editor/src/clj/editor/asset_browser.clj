@@ -45,7 +45,7 @@
            [java.io File]
            [java.nio.file Path Paths]
            [javafx.scene Node]
-           [javafx.scene.control SelectionMode TextField TreeCell TreeItem TreeView]
+           [javafx.scene.control SelectionMode TreeCell TreeItem TreeView]
            [javafx.scene.input Clipboard ClipboardContent DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.stage Stage]
            [org.apache.commons.io FilenameUtils]))
@@ -79,28 +79,6 @@
 (defn tree-item
   ^TreeItem [asset-group-or-resource]
   (LazyTreeItem. asset-group-or-resource list-children))
-
-(defn- name-matches-filter?
-  "Returns true if the asset name contains the filter text (case-insensitive)."
-  [^String filter-lower asset-group-or-resource]
-  (let [name (if (asset-group? asset-group-or-resource)
-               (str (:message asset-group-or-resource))
-               (str (resource/resource-name asset-group-or-resource)))]
-    (string/includes? (string/lower-case name) filter-lower)))
-
-(defn- filtered-tree-item
-  "Builds an eagerly-loaded TreeItem tree, including only items that match
-   the filter or have descendants that match. Returns nil if nothing matches."
-  ^TreeItem [^String filter-lower asset-group-or-resource]
-  (let [children (list-children asset-group-or-resource)
-        filtered-children (into [] (keep #(filtered-tree-item filter-lower %)) children)
-        self-matches (name-matches-filter? filter-lower asset-group-or-resource)]
-    (when (or self-matches (seq filtered-children))
-      (let [item (TreeItem. asset-group-or-resource)]
-        (.setExpanded item true)
-        (when (seq filtered-children)
-          (.setAll (.getChildren item) ^java.util.Collection filtered-children))
-        item))))
 
 (handler/register-menu! ::resource-menu
   [menu-items/open-selected
@@ -727,16 +705,10 @@
     (.getChildren root)))
 
 (g/defnk produce-tree-root
-  [^TreeView raw-tree-view resource-tree filter-text]
+  [^TreeView raw-tree-view resource-tree]
   (let [old-root (.getRoot raw-tree-view)
-        filtering (not (string/blank? filter-text))
-        new-root (if filtering
-                   (or (filtered-tree-item (string/lower-case (string/trim filter-text))
-                                           (with-dependencies-subtree resource-tree))
-                       (doto (TreeItem.) (.setExpanded true)))
-                   (tree-item (with-dependencies-subtree resource-tree)))]
-    (when-not filtering
-      (sync-tree! old-root new-root))
+        new-root (tree-item (with-dependencies-subtree resource-tree))]
+    (sync-tree! old-root new-root)
     (when-not old-root (apply-default-expansion! new-root))
     new-root))
 
@@ -943,7 +915,7 @@
    :props {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
                           :describe (fn/partial #'describe-tree-cell localization-state on-drag-dropped)}}})
 
-(defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view ^TextField filter-field localization]
+(defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view localization]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [selection-provider (SelectionProvider. asset-browser)
         detected-handler (ui/event-handler e (drag-detected e (g/with-auto-evaluation-context evaluation-context (handler/selection selection-provider evaluation-context))))
@@ -953,16 +925,6 @@
        :tree-view tree-view
        :localization localization
        :on-drag-dropped #(error-reporting/catch-all! (drag-dropped % localization))})
-    ;; Wire up the filter text field to update the graph property
-    (localization/localize! (.promptTextProperty filter-field) localization (localization/message "pane.assets.filter.prompt"))
-    (ui/observe (.textProperty filter-field)
-                (fn [_ _ new-text]
-                  (g/set-property! asset-browser :filter-text (or new-text ""))))
-    (.addEventFilter filter-field KeyEvent/KEY_PRESSED
-                     (ui/event-handler e
-                       (when (= KeyCode/ESCAPE (.getCode ^KeyEvent e))
-                         (.setText filter-field "")
-                         (.requestFocus tree-view))))
     (doto tree-view
       (.setShowRoot false)
       (.setSkin (ExtendedTreeViewSkin. tree-view))
@@ -991,7 +953,6 @@
 (g/defnode AssetBrowser
   (property raw-tree-view TreeView)
   (property prefs g/Any)
-  (property filter-text g/Str (default ""))
 
   (input resource-tree FileResource)
   (input active-resource resource/Resource :substitute nil)
@@ -999,12 +960,12 @@
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view filter-field prefs localization]
+(defn make-asset-browser [graph workspace tree-view prefs localization]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :raw-tree-view tree-view :prefs prefs]]
                                           (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
-    (setup-asset-browser asset-browser workspace tree-view filter-field localization)
+    (setup-asset-browser asset-browser workspace tree-view localization)
     asset-browser))

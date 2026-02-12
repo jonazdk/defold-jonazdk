@@ -61,7 +61,7 @@
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
-           [javafx.scene.control MenuBar SplitPane Tab TabPane TextField TreeView]
+           [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
            [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
            [javafx.scene.layout StackPane]
            [javafx.stage Stage]))
@@ -169,17 +169,15 @@
           editor-tabs-split    (.lookup root "#editor-tabs-split")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
-          ^TextField outline-filter-field (.lookup root "#outline-filter-field")
           ^TreeView assets     (.lookup root "#assets")
-          ^TextField asset-filter-field (.lookup root "#asset-filter-field")
           console-tab          (first (.getTabs tool-tabs))
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           [app-view ui-timer]  (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
-          outline-view         (outline-view/make-outline-view *view-graph* project outline outline-filter-field app-view localization)
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets asset-filter-field prefs localization)
+          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view localization)
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
@@ -192,8 +190,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          ^TextField properties-filter-field (.lookup root "#properties-filter-field")
-          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs (.lookup root "#properties") properties-filter-field localization)
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs (.lookup root "#properties"))
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs localization (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))

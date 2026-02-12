@@ -53,24 +53,6 @@ Links:
   -fx-background-color: -df-background !important;
 }
 
-/* Panel filter field styles */
-.panel-filter-field {
-  -fx-background-color: -df-background;
-  -fx-border-width: 0 0 1px 0;
-  -fx-border-color: -df-component-dark;
-  -fx-padding: 4px 8px;
-  -fx-min-height: 24px;
-  -fx-max-height: 24px;
-  -fx-font-size: 12px;
-
-  &:focused {
-    -fx-background-color: -df-background;
-    -fx-border-width: 0 0 2px 0;
-    -fx-border-color: -df-defold-orange;
-    -fx-padding: 4px 8px 3px 8px;
-  }
-}
-
 /* Info panel styles */
 .info-panel {
   -fx-background-color: -df-background-lighter;

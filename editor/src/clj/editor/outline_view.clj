@@ -20,7 +20,6 @@
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.error-reporting :as error-reporting]
@@ -220,17 +219,6 @@
                           active-node-id->node-id-path->expanded))))]
     ret))
 
-(defn- filter-outline-tree
-  "Recursively filters the decorated outline tree, keeping only items whose
-   label matches the filter or whose descendants match. Returns nil if nothing matches."
-  [^String filter-lower outline]
-  (let [children (:children outline)
-        filtered-children (into [] (keep #(filter-outline-tree filter-lower %)) children)
-        self-matches (when-let [label (:label outline)]
-                       (string/includes? (string/lower-case (str label)) filter-lower))]
-    (when (or self-matches (seq filtered-children))
-      (assoc outline :children filtered-children))))
-
 (fxui/defc cljfx-tree-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
@@ -255,17 +243,11 @@
                  :open-resource-nodes (set open-resource-nodes)})}
              {:fx/type fx/ext-recreate-on-key-changed
               :key (:active-resource-node props)}]}
-  [{:keys [tree-view app-view active-resource-node state swap-state decorated-outline filter-text]}]
+  [{:keys [tree-view app-view active-resource-node state swap-state decorated-outline]}]
   (let [{:keys [active-node-id->selected-node-id->node-id-paths active-node-id->node-id-path->expanded]} state
         {:keys [outline]} decorated-outline
-        filtering (not (string/blank? filter-text))
-        outline (if filtering
-                  (or (filter-outline-tree (string/lower-case (string/trim filter-text)) outline) outline)
-                  outline)
         selected-node-id->node-id-paths (get active-node-id->selected-node-id->node-id-paths active-resource-node)
-        node-id-path->expanded (if filtering
-                                 (constantly true)
-                                 (get active-node-id->node-id-path->expanded active-resource-node))
+        node-id-path->expanded (get active-node-id->node-id-path->expanded active-resource-node)
         root (outline->tree-item outline node-id-path->expanded swap-state active-resource-node)]
     {:fx/type fx.ext.tree-view/with-selection-props
      :props {:on-selected-items-changed #(update-selection! app-view swap-state active-resource-node %)}
@@ -291,8 +273,7 @@
                            localization
                            app-view
                            active-resource-node
-                           open-resource-nodes
-                           filter-text]
+                           open-resource-nodes]
   (doto raw-tree-view
     (fxui/advance-ui-user-data-component!
       ::tree
@@ -305,8 +286,7 @@
        :localization localization
        :app-view app-view
        :active-resource-node active-resource-node
-       :open-resource-nodes open-resource-nodes
-       :filter-text filter-text})))
+       :open-resource-nodes open-resource-nodes})))
 
 (defn- item->value [^TreeItem item]
   (.getValue item))
@@ -322,7 +302,6 @@
 (g/defnode OutlineView
   (property raw-tree-view TreeView)
   (property localization g/Any)
-  (property filter-text g/Str (default ""))
 
   (input app-view g/NodeID)
   (input active-outline g/Any :substitute {})
@@ -791,19 +770,9 @@
 
       nil)))
 
-(defn- setup-tree-view [project ^TreeView tree-view ^TextField filter-field outline-view app-view localization]
+(defn- setup-tree-view [project ^TreeView tree-view outline-view app-view localization]
   (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
-    ;; Wire up the filter text field to update the graph property
-    (localization/localize! (.promptTextProperty filter-field) localization (localization/message "pane.outline.filter.prompt"))
-    (ui/observe (.textProperty filter-field)
-                (fn [_ _ new-text]
-                  (g/set-property! outline-view :filter-text (or new-text ""))))
-    (.addEventFilter filter-field KeyEvent/KEY_PRESSED
-                     (ui/event-handler e
-                       (when (= KeyCode/ESCAPE (.getCode ^KeyEvent e))
-                         (.setText filter-field "")
-                         (.requestFocus tree-view))))
     (doto tree-view
       (.setSkin (ExtendedTreeViewSkin. tree-view))
       (ui/customize-tree-view! {:double-click-expand? true})
@@ -821,7 +790,7 @@
       (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                                                resource/Resource :link}))))
 
-(defn make-outline-view [view-graph project tree-view filter-field app-view localization]
+(defn make-outline-view [view-graph project tree-view app-view localization]
   (let [outline-view (first
                        (g/tx-nodes-added
                          (g/transact
@@ -829,5 +798,5 @@
                                                                    :raw-tree-view tree-view
                                                                    :localization localization]]
                              (g/connect app-view :_node-id outline-view :app-view)))))]
-    (setup-tree-view project tree-view filter-field outline-view app-view localization)
+    (setup-tree-view project tree-view outline-view app-view localization)
     outline-view))
