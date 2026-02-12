@@ -573,9 +573,12 @@ dialog.bundle.error.bundle-format.required = 未选择打包格式。
 # Editor panes
 
 pane.assets = 资产
+pane.assets.filter.prompt = 筛选资产...
 pane.changed-files = 更改的文件
 pane.outline = 大纲
+pane.outline.filter.prompt = 筛选大纲...
 pane.properties = 属性
+pane.properties.filter.prompt = 筛选属性...
 pane.console = 控制台
 pane.curve-editor = 曲线编辑
 pane.build-errors = 构建错误

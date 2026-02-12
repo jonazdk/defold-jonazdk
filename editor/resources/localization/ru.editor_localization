@@ -576,9 +576,12 @@ dialog.bundle.error.bundle-format.required = Не выбран формат сб
 # Editor panes
 
 pane.assets = Ресурсы
+pane.assets.filter.prompt = Фильтр ресурсов...
 pane.changed-files = Изменённые Файлы
 pane.outline = Структура
+pane.outline.filter.prompt = Фильтр структуры...
 pane.properties = Свойства
+pane.properties.filter.prompt = Фильтр свойств...
 pane.console = Консоль
 pane.curve-editor = Редактор Кривых
 pane.build-errors = Ошибки Сборки
